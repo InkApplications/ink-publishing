@@ -9,6 +9,14 @@ repositories {
     mavenCentral()
 }
 
+java {
+    withJavadocJar()
+}
+
+val stubJavadoc by tasks.creating(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
 gradlePlugin {
     val publishing by plugins.creating {
         id = "com.inkapplications.publishing"
@@ -42,6 +50,9 @@ afterEvaluate {
     extensions.configure(PublishingExtension::class.java) {
         publications {
             withType<MavenPublication> {
+                if (artifacts.none { it.classifier == "javadoc"}) {
+                    artifact(stubJavadoc)
+                }
                 pom {
                     name.set("Ink Publishing")
                     description.set("Boilerplate Gradle Publishing Config")
