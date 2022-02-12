@@ -23,13 +23,7 @@ class InkPublishingPlugin: Plugin<Project> {
         }
         target.pluginManager.apply(MavenPublishPlugin::class.java)
 
-        val javaDocTask = target.tasks.register("javadocJar", Jar::class.java) {
-            it.archiveClassifier.set("javadoc")
-        }
         target.extensions.configure(PublishingExtension::class.java) {
-            it.publications.all {
-                (it as? MavenPublication)?.artifact(javaDocTask.get())
-            }
             it.repositories.maven {
                 it.name = "Build"
                 it.url = target.uri(target.layout.buildDirectory.dir("repo"))
@@ -43,6 +37,20 @@ class InkPublishingPlugin: Plugin<Project> {
                     it.credentials {
                         it.username = mavenUser
                         it.password = mavenPassword
+                    }
+                }
+            }
+        }
+        val stubJavaDoc = target.tasks.register("stubJavaDoc", Jar::class.java) {
+            it.archiveClassifier.set("javadoc")
+        }
+        target.afterEvaluate {
+            target.extensions.configure(PublishingExtension::class.java) {
+                it.publications.all {
+                    (it as? MavenPublication)?.run {
+                        if (artifacts.none { it.classifier == "javadoc" }) {
+                            artifact(stubJavaDoc.get())
+                        }
                     }
                 }
             }
