@@ -11,10 +11,15 @@ repositories {
 
 java {
     withJavadocJar()
+    withSourcesJar()
 }
 
 val stubJavadoc by tasks.creating(Jar::class) {
     archiveClassifier.set("javadoc")
+}
+
+val stubSources by tasks.creating(Jar::class) {
+    archiveClassifier.set("sources")
 }
 
 gradlePlugin {
@@ -52,6 +57,9 @@ afterEvaluate {
             withType<MavenPublication> {
                 if (artifacts.none { it.classifier == "javadoc"}) {
                     artifact(stubJavadoc)
+                }
+                if (artifacts.none { it.classifier == "sources"}) {
+                    artifact(stubSources)
                 }
                 pom {
                     name.set("Ink Publishing")
