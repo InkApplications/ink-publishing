@@ -48,7 +48,7 @@ class InkPublishingPlugin: Plugin<Project> {
             target.extensions.configure(PublishingExtension::class.java) {
                 it.publications.all {
                     (it as? MavenPublication)?.run {
-                        if (artifacts.none { it.classifier == "javadoc" }) {
+                        if (!it.name.startsWith("android") && artifacts.none { it.classifier == "javadoc" }) {
                             artifact(stubJavaDoc.get())
                         }
                     }
