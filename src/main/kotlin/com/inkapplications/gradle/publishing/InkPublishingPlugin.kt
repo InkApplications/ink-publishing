@@ -17,11 +17,17 @@ import org.gradle.plugins.signing.SigningPlugin
  */
 class InkPublishingPlugin: Plugin<Project> {
     override fun apply(target: Project) {
+        val signingKey = target.findProperty("signingKey")?.toString()
+        val signingKeyId = target.findProperty("signingKeyId")?.toString()
+        val signingPassword = target.findProperty("signingPassword")?.toString()
+        val shouldSign = signingKeyId != null && signingKey != null && signingPassword != null
+
         target.version = when (target.properties["version"]?.toString()) {
             null, "unspecified", "" -> "1.0-SNAPSHOT"
             else -> target.properties["version"].toString()
         }
         target.pluginManager.apply(MavenPublishPlugin::class.java)
+        target.pluginManager.apply(SigningPlugin::class.java)
 
         target.extensions.configure(PublishingExtension::class.java) {
             it.repositories.maven {
@@ -41,28 +47,27 @@ class InkPublishingPlugin: Plugin<Project> {
                 }
             }
         }
-        val stubJavaDoc = target.tasks.register("stubJavaDoc", Jar::class.java) {
-            it.archiveClassifier.set("javadoc")
-        }
         target.afterEvaluate {
             target.extensions.configure(PublishingExtension::class.java) {
-                it.publications.all {
-                    (it as? MavenPublication)?.run {
-                        if (!it.name.startsWith("android") && artifacts.none { it.classifier == "javadoc" }) {
+                it.publications.all { publication ->
+                    (publication as? MavenPublication)?.run {
+                        val stubJavaDoc = target.tasks.register("${publication.name}StubJavaDoc", Jar::class.java) {
+                            it.archiveClassifier.set("javadoc")
+                            it.archiveBaseName.set("${it.archiveBaseName.get()}-${publication.name}")
+                        }
+                        if (!publication.name.startsWith("android") && artifacts.none { it.classifier == "javadoc" }) {
                             artifact(stubJavaDoc.get())
                         }
                     }
                 }
             }
-        }
-        target.pluginManager.apply(SigningPlugin::class.java)
-        target.extensions.configure(SigningExtension::class.java) {
-            val signingKey = target.findProperty("signingKey")?.toString()
-            val signingKeyId = target.findProperty("signingKeyId")?.toString()
-            val signingPassword = target.findProperty("signingPassword")?.toString()
-            if (signingKeyId != null && signingKey != null && signingPassword != null) {
-                it.useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
-                it.sign(target.extensions.getByType(PublishingExtension::class.java).publications)
+            target.extensions.configure(SigningExtension::class.java) { signing ->
+                if (shouldSign) {
+                    signing.useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+                    target.extensions.getByType(PublishingExtension::class.java).publications.forEach { publication ->
+                        signing.sign(publication)
+                    }
+                }
             }
         }
     }
