@@ -1,6 +1,6 @@
 plugins {
     id("java-gradle-plugin")
-    id("org.jetbrains.kotlin.jvm") version "1.5.31"
+    id("org.jetbrains.kotlin.jvm") version "1.9.10"
     id("maven-publish")
     id("signing")
 }
@@ -12,14 +12,6 @@ repositories {
 java {
     withJavadocJar()
     withSourcesJar()
-}
-
-val stubJavadoc by tasks.creating(Jar::class) {
-    archiveClassifier.set("javadoc")
-}
-
-val stubSources by tasks.creating(Jar::class) {
-    archiveClassifier.set("sources")
 }
 
 gradlePlugin {
@@ -55,10 +47,23 @@ afterEvaluate {
     extensions.configure(PublishingExtension::class.java) {
         publications {
             withType<MavenPublication> {
-                if (artifacts.none { it.classifier == "javadoc"}) {
+                val publication = this
+                if (artifacts.none { it.classifier == "javadoc" }) {
+                    val stubJavadoc = project.tasks.register("${publication.name}StubJavadocJar", Jar::class) {
+                        archiveClassifier.set("javadoc")
+                        // Each archive name should be distinct, to avoid implicit dependency issues.
+                        // https://youtrack.jetbrains.com/issue/KT-46466
+                        archiveBaseName.set("${archiveBaseName.get()}-${publication.name}-javadoc")
+                    }
                     artifact(stubJavadoc)
                 }
-                if (artifacts.none { it.classifier == "sources"}) {
+                if (artifacts.none { it.classifier == "sources" }) {
+                    val stubSources = project.tasks.register("${publication.name}StubSourcesJar", Jar::class) {
+                        archiveClassifier.set("sources")
+                        // Each archive name sources be distinct, to avoid implicit dependency issues.
+                        // https://youtrack.jetbrains.com/issue/KT-46466
+                        archiveBaseName.set("${archiveBaseName.get()}-${publication.name}-sources")
+                    }
                     artifact(stubSources)
                 }
                 pom {
@@ -92,9 +97,16 @@ afterEvaluate {
 val signingKey: String? by project
 val signingKeyId: String? by project
 val signingPassword: String? by project
+fun shouldSign() = signingKeyId != null && signingKey != null && signingPassword != null
+
 signing {
-    if (signingKeyId != null && signingKey != null && signingPassword != null) {
+    if (shouldSign()) {
         useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
-        sign(project.extensions.getByType(PublishingExtension::class.java).publications)
+    }
+}
+
+publishing.publications.configureEach {
+    if (shouldSign()) {
+        signing.sign(project.extensions.getByType(PublishingExtension::class.java).publications)
     }
 }
