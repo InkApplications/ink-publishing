@@ -14,6 +14,14 @@ java {
     withSourcesJar()
 }
 
+val stubJavadoc by tasks.creating(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
+val stubSources by tasks.creating(Jar::class) {
+    archiveClassifier.set("sources")
+}
+
 gradlePlugin {
     val publishing by plugins.creating {
         id = "com.inkapplications.publishing"
@@ -47,23 +55,10 @@ afterEvaluate {
     extensions.configure(PublishingExtension::class.java) {
         publications {
             withType<MavenPublication> {
-                val publication = this
-                if (artifacts.none { it.classifier == "javadoc" }) {
-                    val stubJavadoc = project.tasks.register("${publication.name}StubJavadocJar", Jar::class) {
-                        archiveClassifier.set("javadoc")
-                        // Each archive name should be distinct, to avoid implicit dependency issues.
-                        // https://youtrack.jetbrains.com/issue/KT-46466
-                        archiveBaseName.set("${archiveBaseName.get()}-${publication.name}-javadoc")
-                    }
+                if (artifacts.none { it.classifier == "javadoc"}) {
                     artifact(stubJavadoc)
                 }
-                if (artifacts.none { it.classifier == "sources" }) {
-                    val stubSources = project.tasks.register("${publication.name}StubSourcesJar", Jar::class) {
-                        archiveClassifier.set("sources")
-                        // Each archive name sources be distinct, to avoid implicit dependency issues.
-                        // https://youtrack.jetbrains.com/issue/KT-46466
-                        archiveBaseName.set("${archiveBaseName.get()}-${publication.name}-sources")
-                    }
+                if (artifacts.none { it.classifier == "sources"}) {
                     artifact(stubSources)
                 }
                 pom {
@@ -97,16 +92,9 @@ afterEvaluate {
 val signingKey: String? by project
 val signingKeyId: String? by project
 val signingPassword: String? by project
-fun shouldSign() = signingKeyId != null && signingKey != null && signingPassword != null
-
 signing {
-    if (shouldSign()) {
+    if (signingKeyId != null && signingKey != null && signingPassword != null) {
         useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
-    }
-}
-
-publishing.publications.configureEach {
-    if (shouldSign()) {
-        signing.sign(project.extensions.getByType(PublishingExtension::class.java).publications)
+        sign(project.extensions.getByType(PublishingExtension::class.java).publications)
     }
 }
